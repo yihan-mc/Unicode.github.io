@@ -532,6 +532,9 @@
                 <span style="margin-left: 8px;">跳转</span>
                 <input type="number" id="pageJump" min="1" max="256" value="1">
                 <button class="btn btn-primary" id="jumpBtn">GO</button>
+                <!-- 新增：首页和末页按钮 -->
+                <button class="btn" id="firstPageBtn">首页</button>
+                <button class="btn" id="lastPageBtn">末页</button>
             </div>
 
             <!-- 表格 -->
@@ -1049,6 +1052,14 @@
                 }
             });
 
+            // 新增：首页和末页按钮事件
+            document.getElementById('firstPageBtn').addEventListener('click', function() {
+                goToPage(1);
+            });
+            document.getElementById('lastPageBtn').addEventListener('click', function() {
+                goToPage(TOTAL_PAGES);
+            });
+
             document.getElementById('searchBtn').addEventListener('click', function() {
                 const val = searchInput.value;
                 searchAndLocate(val);
@@ -1107,7 +1118,7 @@
 
             // ---------- 初始化 ----------
             switchPlane(0x0000);
-            console.log('✅ 全平面 Unicode 查看器已加载，搜索范围限制已修复。');
+            console.log('✅ 全平面 Unicode 查看器已加载，新增首页/末页按钮。');
         })();
     </script>
 

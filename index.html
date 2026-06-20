@@ -630,7 +630,8 @@
             function switchPlane(start) {
                 currentPlaneStart = start;
                 currentData = generatePlaneData(start);
-                const planeInfo = PLANES['0x' + start.toString(16).toUpperCase()] || { name: '未知', label: '未知平面', range: '' };
+                let planeKey = Object.keys(PLANES).find(key => parseInt(key) === start);
+                const planeInfo = PLANES[planeKey] || { name: '未知', label: '未知平面', range: '' };
                 document.querySelector('.page-title').textContent = planeInfo.label + '字符表';
                 planeDesc.textContent = planeInfo.label + ' · ' + planeInfo.range + ' · 共 ' + TOTAL_PER_PLANE.toLocaleString() +
                     ' 个字符 · 点击 📋 复制字符';

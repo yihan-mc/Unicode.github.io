@@ -2,9 +2,9 @@
 <html style="height: 100%">
 <head>
     <meta charset="UTF-8">
-    <title>全 Unicode 平面查看器 (支持复制字符)</title>
+    <title>全 Unicode 平面查看器 (增强搜索)</title>
     <style>
-        /* 基础重置 & 布局 (与之前一致) */
+        /* 基础重置 & 布局 */
         * {
             margin: 0;
             padding: 0;
@@ -85,6 +85,7 @@
             font-size: 14px;
             font-weight: 500;
             color: #333;
+            margin-right: 2px;
         }
         .toolbar select {
             padding: 6px 12px;
@@ -313,7 +314,7 @@
             box-shadow: 0 0 0 2px #ffb300;
         }
 
-        /* 复制按钮样式 */
+        /* 复制按钮 */
         .copy-btn {
             display: inline-block;
             font-size: 12px;
@@ -357,7 +358,6 @@
             text-decoration: none;
         }
 
-        /* 复制提示 (toast) */
         #copyToast {
             position: fixed;
             bottom: 30px;
@@ -455,7 +455,7 @@
             <div class="page-title">基本多文种平面 (BMP) 字符表</div>
             <div class="page-desc" id="planeDesc">基本多文种平面 (BMP) · 共 65,536 个字符 · 点击 📋 复制字符</div>
 
-            <!-- 工具栏 + 下拉切换 -->
+            <!-- 工具栏 + 下拉切换 + 搜索模式 -->
             <div class="toolbar">
                 <label for="planeSelect">📂 字符集</label>
                 <select id="planeSelect">
@@ -468,7 +468,14 @@
                     <option value="0x100000">PUA-B (私有使用区-B)</option>
                 </select>
 
-                <label for="searchInput">🔍 搜索</label>
+                <!-- 搜索范围下拉 -->
+                <label for="searchMode">🔍 范围</label>
+                <select id="searchMode">
+                    <option value="page">本页</option>
+                    <option value="plane" selected>本字符集</option>
+                    <option value="all">全字符集</option>
+                </select>
+
                 <input type="text" id="searchInput" placeholder="字符 / 十六进制 / 十进制">
                 <button class="btn" id="searchBtn">定位</button>
                 <button class="btn btn-outline" id="resetBtn">重置</button>
@@ -556,6 +563,8 @@
             let currentData = [];
             let currentPage = 1;
             let highlightCode = -1;
+            // 缓存所有平面数据
+            const planeDataCache = {};
 
             // DOM 引用
             const tbody = document.getElementById('resultBody');
@@ -569,12 +578,17 @@
             const planeSub = document.getElementById('planeSub');
             const planeDesc = document.getElementById('planeDesc');
             const searchInput = document.getElementById('searchInput');
+            const searchMode = document.getElementById('searchMode');
             const copyToast = document.getElementById('copyToast');
 
             totalPagesDisplay.textContent = TOTAL_PAGES;
 
-            // ---------- 生成指定平面的数据 ----------
+            // ---------- 生成指定平面的数据 (并缓存) ----------
             function generatePlaneData(start) {
+                // 如果已缓存则直接返回
+                if (planeDataCache[start] !== undefined) {
+                    return planeDataCache[start];
+                }
                 console.time('生成平面数据 ' + start.toString(16));
                 const data = [];
                 const end = start + TOTAL_PER_PLANE;
@@ -608,6 +622,7 @@
                     });
                 }
                 console.timeEnd('生成平面数据 ' + start.toString(16));
+                planeDataCache[start] = data;
                 return data;
             }
 
@@ -626,7 +641,7 @@
                 renderPage(currentPage);
             }
 
-            // ---------- 渲染当前页 (增加复制按钮) ----------
+            // ---------- 渲染当前页 (包含复制按钮) ----------
             function renderPage(page) {
                 if (page < 1) page = 1;
                 if (page > TOTAL_PAGES) page = TOTAL_PAGES;
@@ -666,8 +681,6 @@
                         }
 
                         const highlightClass = (code === highlightCode) ? ' highlight-cell' : '';
-
-                        // 复制按钮：data-code 存储十进制码位
                         const copyBtn = `<span class="copy-btn" data-code="${code}" title="复制字符">📋</span>`;
 
                         html += `<td class="${highlightClass}">
@@ -692,7 +705,7 @@
                 updateShadow();
             }
 
-            // ---------- 复制功能 (事件委托) ----------
+            // ---------- 复制功能 ----------
             tbody.addEventListener('click', function(e) {
                 const btn = e.target.closest('.copy-btn');
                 if (!btn) return;
@@ -700,7 +713,6 @@
                 const code = parseInt(btn.dataset.code);
                 if (isNaN(code)) return;
 
-                // 获取真实字符
                 let char;
                 try {
                     char = String.fromCodePoint(code);
@@ -713,12 +725,10 @@
                     return;
                 }
 
-                // 复制
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(char)
                         .then(() => {
                             showToast('✅ 已复制: ' + (char.length === 1 ? char : '特殊字符'));
-                            // 按钮反馈
                             btn.classList.add('copied');
                             btn.textContent = '✓';
                             setTimeout(() => {
@@ -734,7 +744,6 @@
                 }
             });
 
-            // 降级复制方案
             function fallbackCopy(text, btn) {
                 try {
                     const textarea = document.createElement('textarea');
@@ -757,7 +766,6 @@
                 }
             }
 
-            // Toast 提示
             let toastTimer = null;
 
             function showToast(msg) {
@@ -769,7 +777,7 @@
                 }, 2000);
             }
 
-            // ---------- 搜索定位 ----------
+            // ---------- 核心搜索函数 (支持三种模式) ----------
             function searchAndLocate(keyword) {
                 const kw = keyword.trim();
                 if (!kw) {
@@ -778,6 +786,7 @@
                     return;
                 }
 
+                // 尝试解析数字码位
                 let targetCode = -1;
                 const lower = kw.toLowerCase();
                 if (/^0x[0-9a-f]{1,5}$/i.test(kw)) {
@@ -788,28 +797,95 @@
                     targetCode = parseInt(kw, 10);
                 }
 
-                if (targetCode >= currentPlaneStart && targetCode < currentPlaneStart + TOTAL_PER_PLANE) {
-                    highlightCode = targetCode;
-                    const page = Math.floor((targetCode - currentPlaneStart) / PAGE_SIZE) + 1;
-                    renderPage(page);
-                    return;
-                }
-
-                let found = -1;
-                for (let i = 0; i < currentData.length; i++) {
-                    const item = currentData[i];
-                    const str = item.char + item.display + item.hex + String(item.code);
-                    if (str.toLowerCase().includes(kw)) {
-                        found = item.code;
-                        break;
+                // 如果解析成功且在某个平面内，直接跳转
+                if (targetCode >= 0 && targetCode <= 0x10FFFF) {
+                    // 找到所属平面
+                    let foundPlane = -1;
+                    for (const key of Object.keys(PLANES)) {
+                        const start = parseInt(key);
+                        if (targetCode >= start && targetCode < start + TOTAL_PER_PLANE) {
+                            foundPlane = start;
+                            break;
+                        }
+                    }
+                    if (foundPlane !== -1) {
+                        // 确保该平面数据已缓存
+                        const data = generatePlaneData(foundPlane);
+                        // 检查码位是否在平面内（肯定在）
+                        highlightCode = targetCode;
+                        // 切换平面
+                        if (foundPlane !== currentPlaneStart) {
+                            switchPlane(foundPlane);
+                            // switchPlane 会重置 currentPage=1，但我们需要跳转到具体页
+                            const page = Math.floor((targetCode - foundPlane) / PAGE_SIZE) + 1;
+                            currentPage = page;
+                            renderPage(page);
+                        } else {
+                            const page = Math.floor((targetCode - currentPlaneStart) / PAGE_SIZE) + 1;
+                            currentPage = page;
+                            renderPage(page);
+                        }
+                        return;
+                    } else {
+                        // 码位在未定义平面（如Plane 3-13）则提示
+                        alert('该码位位于未定义的平面，暂不支持查看');
+                        return;
                     }
                 }
-                if (found !== -1) {
-                    highlightCode = found;
-                    const page = Math.floor((found - currentPlaneStart) / PAGE_SIZE) + 1;
-                    renderPage(page);
-                } else {
-                    alert('在当前平面中未找到匹配的字符');
+
+                // ----- 不是精确码位，则根据模式进行字符串匹配 -----
+                const mode = searchMode.value; // 'page', 'plane', 'all'
+
+                if (mode === 'page') {
+                    // 仅当前页
+                    const startIdx = (currentPage - 1) * PAGE_SIZE;
+                    const endIdx = Math.min(startIdx + PAGE_SIZE, currentData.length);
+                    for (let i = startIdx; i < endIdx; i++) {
+                        const item = currentData[i];
+                        const str = item.char + item.display + item.hex + String(item.code);
+                        if (str.toLowerCase().includes(kw)) {
+                            highlightCode = item.code;
+                            renderPage(currentPage); // 重新高亮
+                            return;
+                        }
+                    }
+                    alert('当前页未找到匹配字符');
+                } else if (mode === 'plane') {
+                    // 本字符集 (当前平面)
+                    for (let i = 0; i < currentData.length; i++) {
+                        const item = currentData[i];
+                        const str = item.char + item.display + item.hex + String(item.code);
+                        if (str.toLowerCase().includes(kw)) {
+                            highlightCode = item.code;
+                            const page = Math.floor((item.code - currentPlaneStart) / PAGE_SIZE) + 1;
+                            currentPage = page;
+                            renderPage(page);
+                            return;
+                        }
+                    }
+                    alert('当前平面未找到匹配字符');
+                } else { // 'all'
+                    // 全字符集：遍历所有已定义平面
+                    for (const key of Object.keys(PLANES)) {
+                        const start = parseInt(key);
+                        const data = generatePlaneData(start);
+                        for (let i = 0; i < data.length; i++) {
+                            const item = data[i];
+                            const str = item.char + item.display + item.hex + String(item.code);
+                            if (str.toLowerCase().includes(kw)) {
+                                highlightCode = item.code;
+                                // 切换平面
+                                if (start !== currentPlaneStart) {
+                                    switchPlane(start);
+                                }
+                                const page = Math.floor((item.code - start) / PAGE_SIZE) + 1;
+                                currentPage = page;
+                                renderPage(page);
+                                return;
+                            }
+                        }
+                    }
+                    alert('所有已定义字符集中未找到匹配字符');
                 }
             }
 
@@ -877,9 +953,8 @@
             mainContent.addEventListener('scroll', updateShadow);
             tableScroll.addEventListener('scroll', updateShadow);
 
-            // 行高亮（排除复制按钮点击）
+            // 行高亮（排除复制按钮）
             tbody.addEventListener('click', function(e) {
-                // 如果点击的是复制按钮或其内部，不触发行高亮
                 if (e.target.closest('.copy-btn')) return;
                 const td = e.target.closest('td');
                 if (!td) return;
@@ -903,7 +978,7 @@
 
             // ---------- 初始化 ----------
             switchPlane(0x0000);
-            console.log('✅ 全平面 Unicode 查看器已加载，支持复制字符。');
+            console.log('✅ 全平面 Unicode 查看器已加载，搜索支持三种范围。');
         })();
     </script>
 

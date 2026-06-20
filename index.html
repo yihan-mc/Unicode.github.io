@@ -2,7 +2,7 @@
 <html style="height: 100%">
 <head>
     <meta charset="UTF-8">
-    <title>全 Unicode 平面查看器 (增强搜索)</title>
+    <title>全 Unicode 平面查看器 (灵活搜索)</title>
     <style>
         /* 基础重置 & 布局 */
         * {
@@ -104,7 +104,7 @@
             border: 1px solid #dce1eb;
             border-radius: 6px;
             font-size: 14px;
-            width: 180px;
+            width: 160px;
             outline: none;
             transition: 0.2s;
         }
@@ -141,6 +141,38 @@
             padding: 4px 14px;
             border-radius: 20px;
             white-space: nowrap;
+        }
+
+        /* ---- 搜索选项按钮组 ---- */
+        .search-options {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        .search-options .opt-btn {
+            padding: 4px 12px;
+            border: 1px solid #d0d7e5;
+            border-radius: 14px;
+            font-size: 12px;
+            background: #fff;
+            color: #666;
+            cursor: pointer;
+            transition: 0.15s;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .search-options .opt-btn:hover {
+            background: #eef2f7;
+        }
+        .search-options .opt-btn.active {
+            background: #5fb8ff;
+            color: #fff;
+            border-color: #5fb8ff;
+            box-shadow: 0 1px 4px rgba(95, 184, 255, 0.3);
+        }
+        .search-options .opt-btn.active:hover {
+            background: #3d9ee0;
+            border-color: #3d9ee0;
         }
 
         /* 分页控件 */
@@ -392,6 +424,10 @@
             .toolbar input[type="text"] {
                 width: 100%;
             }
+            .search-options {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
             .pagination {
                 flex-direction: column;
                 align-items: stretch;
@@ -455,7 +491,7 @@
             <div class="page-title">基本多文种平面 (BMP) 字符表</div>
             <div class="page-desc" id="planeDesc">基本多文种平面 (BMP) · 共 65,536 个字符 · 点击 📋 复制字符</div>
 
-            <!-- 工具栏 + 下拉切换 + 搜索模式 -->
+            <!-- 工具栏 + 下拉切换 + 搜索模式 + 搜索选项按钮 -->
             <div class="toolbar">
                 <label for="planeSelect">📂 字符集</label>
                 <select id="planeSelect">
@@ -468,7 +504,6 @@
                     <option value="0x100000">PUA-B (私有使用区-B)</option>
                 </select>
 
-                <!-- 搜索范围下拉 -->
                 <label for="searchMode">🔍 范围</label>
                 <select id="searchMode">
                     <option value="page">本页</option>
@@ -476,7 +511,14 @@
                     <option value="all">全字符集</option>
                 </select>
 
-                <input type="text" id="searchInput" placeholder="字符 / 十六进制 / 十进制">
+                <!-- 搜索选项按钮组 -->
+                <span class="search-options" id="searchOptions">
+                    <span class="opt-btn active" data-opt="decimal">十进制</span>
+                    <span class="opt-btn active" data-opt="hex">十六进制</span>
+                    <span class="opt-btn active" data-opt="char">字符</span>
+                </span>
+
+                <input type="text" id="searchInput" placeholder="关键词">
                 <button class="btn" id="searchBtn">定位</button>
                 <button class="btn btn-outline" id="resetBtn">重置</button>
                 <span class="badge" id="countBadge">共 65,536 个字符</span>
@@ -563,8 +605,14 @@
             let currentData = [];
             let currentPage = 1;
             let highlightCode = -1;
-            // 缓存所有平面数据
             const planeDataCache = {};
+
+            // 搜索选项状态 (默认全开)
+            let searchOpts = {
+                decimal: true,
+                hex: true,
+                char: true
+            };
 
             // DOM 引用
             const tbody = document.getElementById('resultBody');
@@ -580,12 +628,12 @@
             const searchInput = document.getElementById('searchInput');
             const searchMode = document.getElementById('searchMode');
             const copyToast = document.getElementById('copyToast');
+            const searchOptionsContainer = document.getElementById('searchOptions');
 
             totalPagesDisplay.textContent = TOTAL_PAGES;
 
             // ---------- 生成指定平面的数据 (并缓存) ----------
             function generatePlaneData(start) {
-                // 如果已缓存则直接返回
                 if (planeDataCache[start] !== undefined) {
                     return planeDataCache[start];
                 }
@@ -626,23 +674,38 @@
                 return data;
             }
 
-            // ---------- 切换平面 ----------
-            function switchPlane(start) {
+            // ---------- 切换平面 (增强：支持同步下拉框) ----------
+            function switchPlane(start, options = {}) {
+                const resetHighlight = options.resetHighlight !== undefined ? options.resetHighlight : true;
+                const clearSearch = options.clearSearch !== undefined ? options.clearSearch : true;
+
                 currentPlaneStart = start;
                 currentData = generatePlaneData(start);
+
+                // 同步下拉框
+                const selectVal = '0x' + start.toString(16).toUpperCase().padStart(4, '0');
+                planeSelect.value = selectVal;
+
+                // 更新界面信息
                 let planeKey = Object.keys(PLANES).find(key => parseInt(key) === start);
                 const planeInfo = PLANES[planeKey] || { name: '未知', label: '未知平面', range: '' };
+
                 document.querySelector('.page-title').textContent = planeInfo.label + '字符表';
                 planeDesc.textContent = planeInfo.label + ' · ' + planeInfo.range + ' · 共 ' + TOTAL_PER_PLANE.toLocaleString() +
                     ' 个字符 · 点击 📋 复制字符';
                 planeSub.textContent = planeInfo.name + ' · ' + planeInfo.range;
-                highlightCode = -1;
-                searchInput.value = '';
+
+                if (clearSearch) {
+                    searchInput.value = '';
+                }
+                if (resetHighlight) {
+                    highlightCode = -1;
+                }
                 currentPage = 1;
                 renderPage(currentPage);
             }
 
-            // ---------- 渲染当前页 (包含复制按钮) ----------
+            // ---------- 渲染当前页 ----------
             function renderPage(page) {
                 if (page < 1) page = 1;
                 if (page > TOTAL_PAGES) page = TOTAL_PAGES;
@@ -710,22 +773,18 @@
             tbody.addEventListener('click', function(e) {
                 const btn = e.target.closest('.copy-btn');
                 if (!btn) return;
-
                 const code = parseInt(btn.dataset.code);
                 if (isNaN(code)) return;
-
                 let char;
                 try {
                     char = String.fromCodePoint(code);
                 } catch (_) {
                     char = '';
                 }
-
                 if (!char) {
                     showToast('⚠️ 无法复制该字符');
                     return;
                 }
-
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(char)
                         .then(() => {
@@ -778,7 +837,17 @@
                 }, 2000);
             }
 
-            // ---------- 核心搜索函数 (支持三种模式) ----------
+            // ---------- 搜索选项按钮交互 ----------
+            searchOptionsContainer.addEventListener('click', function(e) {
+                const btn = e.target.closest('.opt-btn');
+                if (!btn) return;
+                const opt = btn.dataset.opt;
+                if (!opt) return;
+                btn.classList.toggle('active');
+                searchOpts[opt] = btn.classList.contains('active');
+            });
+
+            // ---------- 核心搜索函数 (严格按范围限制) ----------
             function searchAndLocate(keyword) {
                 const kw = keyword.trim();
                 if (!kw) {
@@ -787,76 +856,126 @@
                     return;
                 }
 
-                // 尝试解析数字码位
-                let targetCode = -1;
-                const lower = kw.toLowerCase();
-                if (/^0x[0-9a-f]{1,5}$/i.test(kw)) {
-                    targetCode = parseInt(kw, 16);
-                } else if (/^[0-9a-f]{1,5}$/i.test(kw) && !/^[0-9]+$/.test(kw)) {
-                    targetCode = parseInt(kw, 16);
-                } else if (/^[0-9]+$/.test(kw)) {
-                    targetCode = parseInt(kw, 10);
+                const hexEnabled = searchOpts.hex;
+                const decEnabled = searchOpts.decimal;
+                const charEnabled = searchOpts.char;
+
+                if (!hexEnabled && !decEnabled && !charEnabled) {
+                    alert('请至少启用一种搜索方式（十进制、十六进制或字符）');
+                    return;
                 }
 
-                // 如果解析成功且在某个平面内，直接跳转
-                if (targetCode >= 0 && targetCode <= 0x10FFFF) {
-                    // 找到所属平面
-                    let foundPlane = -1;
-                    for (const key of Object.keys(PLANES)) {
-                        const start = parseInt(key);
-                        if (targetCode >= start && targetCode < start + TOTAL_PER_PLANE) {
-                            foundPlane = start;
-                            break;
-                        }
-                    }
-                    if (foundPlane !== -1) {
-                        // 确保该平面数据已缓存
-                        const data = generatePlaneData(foundPlane);
-                        // 检查码位是否在平面内（肯定在）
-                        highlightCode = targetCode;
-                        // 切换平面
-                        if (foundPlane !== currentPlaneStart) {
-                            switchPlane(foundPlane);
-                            // switchPlane 会重置 currentPage=1，但我们需要跳转到具体页
-                            const page = Math.floor((targetCode - foundPlane) / PAGE_SIZE) + 1;
-                            currentPage = page;
-                            renderPage(page);
-                        } else {
-                            const page = Math.floor((targetCode - currentPlaneStart) / PAGE_SIZE) + 1;
-                            currentPage = page;
-                            renderPage(page);
-                        }
-                        return;
-                    } else {
-                        // 码位在未定义平面（如Plane 3-13）则提示
-                        alert('该码位位于未定义的平面，暂不支持查看');
-                        return;
-                    }
-                }
-
-                // ----- 不是精确码位，则根据模式进行字符串匹配 -----
                 const mode = searchMode.value; // 'page', 'plane', 'all'
 
+                // ----- 先尝试数字解析 -----
+                let targetCode = -1;
+                if (hexEnabled) {
+                    let hexStr = kw;
+                    let isHex = false;
+                    if (/^0x[0-9a-f]{1,5}$/i.test(kw)) {
+                        hexStr = kw.slice(2);
+                        isHex = true;
+                    } else if (/^[0-9a-f]{1,5}$/i.test(kw)) {
+                        isHex = true;
+                    }
+                    if (isHex) {
+                        const parsed = parseInt(hexStr, 16);
+                        if (!isNaN(parsed) && parsed >= 0 && parsed <= 0x10FFFF) {
+                            targetCode = parsed;
+                        }
+                    }
+                }
+                if (targetCode === -1 && decEnabled) {
+                    if (/^[0-9]+$/.test(kw)) {
+                        const parsed = parseInt(kw, 10);
+                        if (!isNaN(parsed) && parsed >= 0 && parsed <= 0x10FFFF) {
+                            targetCode = parsed;
+                        }
+                    }
+                }
+
+                // 如果解析到了有效码位
+                if (targetCode !== -1) {
+                    // 根据模式判断是否允许跳转
+                    let allowJump = false;
+                    if (mode === 'all') {
+                        allowJump = true;
+                    } else if (mode === 'plane') {
+                        // 只在当前平面内
+                        if (targetCode >= currentPlaneStart && targetCode < currentPlaneStart + TOTAL_PER_PLANE) {
+                            allowJump = true;
+                        }
+                    } else if (mode === 'page') {
+                        // 只在当前页内
+                        const startIdx = (currentPage - 1) * PAGE_SIZE;
+                        const endIdx = Math.min(startIdx + PAGE_SIZE, currentData.length);
+                        for (let i = startIdx; i < endIdx; i++) {
+                            if (currentData[i].code === targetCode) {
+                                allowJump = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (allowJump) {
+                        // 找到所属平面（已经确保在当前平面或全局）
+                        let foundPlane = -1;
+                        for (const key of Object.keys(PLANES)) {
+                            const start = parseInt(key);
+                            if (targetCode >= start && targetCode < start + TOTAL_PER_PLANE) {
+                                foundPlane = start;
+                                break;
+                            }
+                        }
+                        if (foundPlane !== -1) {
+                            highlightCode = targetCode;
+                            if (foundPlane !== currentPlaneStart) {
+                                // 切换平面，保留搜索框和高亮
+                                switchPlane(foundPlane, { resetHighlight: false, clearSearch: false });
+                                const page = Math.floor((targetCode - foundPlane) / PAGE_SIZE) + 1;
+                                currentPage = page;
+                                renderPage(page);
+                            } else {
+                                const page = Math.floor((targetCode - currentPlaneStart) / PAGE_SIZE) + 1;
+                                currentPage = page;
+                                renderPage(page);
+                            }
+                            return;
+                        } else {
+                            alert('该码位位于未定义的平面，暂不支持查看');
+                            return;
+                        }
+                    } else {
+                        // 码位解析成功但超出当前范围，提示未找到
+                        alert('在当前搜索范围内未找到该码位');
+                        return;
+                    }
+                }
+
+                // ----- 字符模糊匹配（仅当 charEnabled） -----
+                if (!charEnabled) {
+                    alert('未找到匹配的码位，请检查输入或启用"字符"搜索进行模糊匹配。');
+                    return;
+                }
+
+                // 根据模式搜索
                 if (mode === 'page') {
-                    // 仅当前页
                     const startIdx = (currentPage - 1) * PAGE_SIZE;
                     const endIdx = Math.min(startIdx + PAGE_SIZE, currentData.length);
                     for (let i = startIdx; i < endIdx; i++) {
                         const item = currentData[i];
-                        const str = item.char + item.display + item.hex + String(item.code);
-                        if (str.toLowerCase().includes(kw)) {
+                        const str = item.char + item.display;
+                        if (str.toLowerCase().includes(kw.toLowerCase())) {
                             highlightCode = item.code;
-                            renderPage(currentPage); // 重新高亮
+                            renderPage(currentPage);
                             return;
                         }
                     }
                     alert('当前页未找到匹配字符');
                 } else if (mode === 'plane') {
-                    // 本字符集 (当前平面)
                     for (let i = 0; i < currentData.length; i++) {
                         const item = currentData[i];
-                        const str = item.char + item.display + item.hex + String(item.code);
-                        if (str.toLowerCase().includes(kw)) {
+                        const str = item.char + item.display;
+                        if (str.toLowerCase().includes(kw.toLowerCase())) {
                             highlightCode = item.code;
                             const page = Math.floor((item.code - currentPlaneStart) / PAGE_SIZE) + 1;
                             currentPage = page;
@@ -866,22 +985,24 @@
                     }
                     alert('当前平面未找到匹配字符');
                 } else { // 'all'
-                    // 全字符集：遍历所有已定义平面
                     for (const key of Object.keys(PLANES)) {
                         const start = parseInt(key);
                         const data = generatePlaneData(start);
                         for (let i = 0; i < data.length; i++) {
                             const item = data[i];
-                            const str = item.char + item.display + item.hex + String(item.code);
-                            if (str.toLowerCase().includes(kw)) {
+                            const str = item.char + item.display;
+                            if (str.toLowerCase().includes(kw.toLowerCase())) {
                                 highlightCode = item.code;
-                                // 切换平面
                                 if (start !== currentPlaneStart) {
-                                    switchPlane(start);
+                                    switchPlane(start, { resetHighlight: false, clearSearch: false });
+                                    const page = Math.floor((item.code - start) / PAGE_SIZE) + 1;
+                                    currentPage = page;
+                                    renderPage(page);
+                                } else {
+                                    const page = Math.floor((item.code - currentPlaneStart) / PAGE_SIZE) + 1;
+                                    currentPage = page;
+                                    renderPage(page);
                                 }
-                                const page = Math.floor((item.code - start) / PAGE_SIZE) + 1;
-                                currentPage = page;
-                                renderPage(page);
                                 return;
                             }
                         }
@@ -901,11 +1022,12 @@
             }
 
             // ---------- 事件绑定 ----------
+            // 手动切换平面（清空搜索和高亮）
             planeSelect.addEventListener('change', function() {
                 const val = this.value;
                 const start = parseInt(val);
                 if (!isNaN(start) && start !== currentPlaneStart) {
-                    switchPlane(start);
+                    switchPlane(start); // 默认清空
                 }
             });
 
@@ -937,9 +1059,15 @@
                 }
             });
 
+            // 重置：清空搜索框、取消高亮、恢复搜索选项全选、回到第一页
             document.getElementById('resetBtn').addEventListener('click', function() {
                 searchInput.value = '';
                 highlightCode = -1;
+                const btns = searchOptionsContainer.querySelectorAll('.opt-btn');
+                btns.forEach(btn => {
+                    btn.classList.add('active');
+                    searchOpts[btn.dataset.opt] = true;
+                });
                 renderPage(1);
             });
 
@@ -979,7 +1107,7 @@
 
             // ---------- 初始化 ----------
             switchPlane(0x0000);
-            console.log('✅ 全平面 Unicode 查看器已加载，搜索支持三种范围。');
+            console.log('✅ 全平面 Unicode 查看器已加载，搜索范围限制已修复。');
         })();
     </script>
 

@@ -70,16 +70,21 @@
             margin-bottom: 16px;
         }
 
-        /* 工具栏 + 下拉 */
+        /* 工具栏 */
         .toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
             background: #f8f9fc;
             padding: 10px 16px;
             border-radius: 8px;
             margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toolbar-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
         }
         .toolbar label {
             font-size: 14px;
@@ -208,6 +213,13 @@
         }
         .search-wrapper .clear-btn.visible {
             display: block;
+        }
+        /* 搜索优先级提示 */
+        .search-priority-hint {
+            font-size: 12px;
+            color: #999;
+            margin-left: 4px;
+            white-space: nowrap;
         }
 
         /* ---- 历史搜索面板 ---- */
@@ -338,6 +350,16 @@
         }
         .pagination .btn-primary:hover {
             background: #3d9ee0;
+        }
+        /* 禁用按钮样式 */
+        .pagination .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: #eef2f7;
+            color: #aaa;
+        }
+        .pagination .btn:disabled:hover {
+            background: #eef2f7;
         }
 
         /* 表格容器 */
@@ -531,9 +553,10 @@
             .main_content {
                 padding: 12px;
             }
-            .toolbar {
+            .toolbar-row {
                 flex-direction: column;
                 align-items: stretch;
+                gap: 8px;
             }
             .toolbar .badge {
                 margin-left: 0;
@@ -551,6 +574,12 @@
             .search-options {
                 flex-wrap: wrap;
                 justify-content: center;
+            }
+            .search-priority-hint {
+                display: block;
+                margin-left: 0;
+                margin-top: 2px;
+                text-align: center;
             }
             .pagination {
                 flex-direction: column;
@@ -619,51 +648,62 @@
             <div class="page-title">全 Unicode 平面查看器</div>
             <div class="page-desc" id="planeDesc">基本多文种平面 (BMP) · 共 65,536 个字符 · 点击 📋 复制字符</div>
 
-            <!-- 工具栏 + 下拉切换 + 搜索模式 + 搜索选项按钮 -->
+            <!-- 工具栏 - 两行布局 -->
             <div class="toolbar">
-                <label for="planeSelect">📂 字符集</label>
-                <select id="planeSelect">
-                    <!-- 由 JS 动态生成所有平面选项 -->
-                </select>
-
-                <label for="searchMode">🔍 范围</label>
-                <select id="searchMode">
-                    <option value="page">本页</option>
-                    <option value="plane" selected>本字符集</option>
-                    <option value="all">全字符集</option>
-                </select>
-
-                <!-- 搜索选项按钮组 -->
-                <span class="search-options" id="searchOptions">
-                    <span class="opt-btn active" data-opt="decimal">十进制</span>
-                    <span class="opt-btn active" data-opt="hex">十六进制</span>
-                    <span class="opt-btn active" data-opt="char">字符</span>
-                </span>
-
-                <!-- 搜索输入框 + 清除按钮 + 历史面板 -->
-                <div class="search-wrapper" id="searchWrapper">
-                    <input type="text" id="searchInput" placeholder="关键词" autocomplete="off">
-                    <button class="clear-btn" id="clearSearchBtn" title="清除">✕</button>
-                    <!-- 历史面板 -->
-                    <div class="history-panel" id="historyPanel">
-                        <div class="history-header">
-                            <span>搜索历史</span>
-                            <button class="clear-all-btn" id="clearAllHistory" title="清除所有历史">🗑️</button>
-                        </div>
-                        <ul class="history-list" id="historyList"></ul>
-                    </div>
+                <!-- 第一行：字符集 -->
+                <div class="toolbar-row">
+                    <label for="planeSelect">📂 字符集</label>
+                    <select id="planeSelect">
+                        <!-- 由 JS 动态生成所有平面选项 -->
+                    </select>
+                    <!-- 此处可放置其它与字符集相关的元素，暂无 -->
                 </div>
 
-                <button class="btn" id="searchBtn">定位</button>
-                <button class="btn btn-outline" id="resetBtn">重置</button>
-                <span class="badge" id="countBadge">共 65,536 个字符</span>
+                <!-- 第二行：搜索相关 -->
+                <div class="toolbar-row">
+                    <label for="searchMode">🔍 范围</label>
+                    <select id="searchMode">
+                        <option value="page">本页</option>
+                        <option value="plane" selected>本字符集</option>
+                        <option value="all">全字符集</option>
+                    </select>
+
+                    <!-- 搜索选项按钮组 -->
+                    <span class="search-options" id="searchOptions">
+                        <span class="opt-btn active" data-opt="decimal">十进制</span>
+                        <span class="opt-btn active" data-opt="hex">十六进制</span>
+                        <span class="opt-btn active" data-opt="char">字符</span>
+                    </span>
+
+                    <!-- 搜索输入框 + 清除按钮 + 历史面板 -->
+                    <div class="search-wrapper" id="searchWrapper">
+                        <input type="text" id="searchInput" placeholder="关键词" autocomplete="off">
+                        <button class="clear-btn" id="clearSearchBtn" title="清除">✕</button>
+                        <!-- 历史面板 -->
+                        <div class="history-panel" id="historyPanel">
+                            <div class="history-header">
+                                <span>搜索历史</span>
+                                <button class="clear-all-btn" id="clearAllHistory" title="清除所有历史">🗑️</button>
+                            </div>
+                            <ul class="history-list" id="historyList"></ul>
+                        </div>
+                    </div>
+                    <!-- 优先级提示 -->
+                    <span class="search-priority-hint">(十六进制优先)</span>
+
+                    <button class="btn" id="searchBtn">定位</button>
+                    <button class="btn btn-outline" id="resetBtn">重置</button>
+
+                    <!-- 计数徽章靠右 -->
+                    <span class="badge" id="countBadge">共 65,536 个字符</span>
+                </div>
             </div>
 
             <!-- 分页控件 -->
             <div class="pagination">
-                <button class="btn" id="prevPage">◀ 上一页</button>
+                <button class="btn" id="prevPage" title="上一页">◀ 上一页</button>
                 <span class="info">第 <strong id="currentPageDisplay">1</strong> / <span id="totalPagesDisplay">256</span> 页</span>
-                <button class="btn" id="nextPage">下一页 ▶</button>
+                <button class="btn" id="nextPage" title="下一页">下一页 ▶</button>
                 <span style="margin-left: 8px;">跳转</span>
                 <input type="number" id="pageJump" min="1" max="256" value="1">
                 <button class="btn btn-primary" id="jumpBtn">GO</button>
@@ -807,6 +847,8 @@
             const historyList = document.getElementById('historyList');
             const clearAllHistoryBtn = document.getElementById('clearAllHistory');
             const searchWrapper = document.getElementById('searchWrapper');
+            const prevPageBtn = document.getElementById('prevPage');
+            const nextPageBtn = document.getElementById('nextPage');
 
             totalPagesDisplay.textContent = TOTAL_PAGES;
 
@@ -980,6 +1022,28 @@
                 currentPage = 1;
                 renderPage(currentPage);
                 updateClearBtn();
+                updateNavButtons();
+            }
+
+            // ---------- 更新上一页/下一页按钮状态 ----------
+            function updateNavButtons() {
+                // 上一页禁用条件：当前是 BMP (0x0000) 且当前页为 1
+                const isFirstPlaneFirstPage = (currentPlaneStart === 0x0000 && currentPage === 1);
+                prevPageBtn.disabled = isFirstPlaneFirstPage;
+                if (isFirstPlaneFirstPage) {
+                    prevPageBtn.title = '已是首个平面首页';
+                } else {
+                    prevPageBtn.title = '上一页';
+                }
+
+                // 下一页禁用条件：当前是 PUA-B (0x100000) 且当前页为 TOTAL_PAGES
+                const isLastPlaneLastPage = (currentPlaneStart === 0x100000 && currentPage === TOTAL_PAGES);
+                nextPageBtn.disabled = isLastPlaneLastPage;
+                if (isLastPlaneLastPage) {
+                    nextPageBtn.title = '已是最后一个平面末页';
+                } else {
+                    nextPageBtn.title = '下一页';
+                }
             }
 
             // ---------- 渲染当前页 ----------
@@ -1044,6 +1108,7 @@
                     }
                 }
                 updateShadow();
+                updateNavButtons();
             }
 
             // ---------- 复制功能 ----------
@@ -1307,34 +1372,30 @@
             });
 
             // 上一页：跨平面逻辑
-            document.getElementById('prevPage').addEventListener('click', function() {
+            prevPageBtn.addEventListener('click', function() {
+                if (this.disabled) return;
                 if (currentPage > 1) {
                     goToPage(currentPage - 1);
                 } else {
-                    // 尝试跳转到上一个平面的末页
                     const prevStart = getPrevPlaneStart(currentPlaneStart);
                     if (prevStart !== null) {
                         switchPlane(prevStart, { resetHighlight: true, clearSearch: true });
-                        // 切换到末页
                         renderPage(TOTAL_PAGES);
                     }
-                    // 若无上一个平面，无操作
                 }
             });
 
             // 下一页：跨平面逻辑
-            document.getElementById('nextPage').addEventListener('click', function() {
+            nextPageBtn.addEventListener('click', function() {
+                if (this.disabled) return;
                 if (currentPage < TOTAL_PAGES) {
                     goToPage(currentPage + 1);
                 } else {
-                    // 尝试跳转到下一个平面的首页
                     const nextStart = getNextPlaneStart(currentPlaneStart);
                     if (nextStart !== null) {
                         switchPlane(nextStart, { resetHighlight: true, clearSearch: true });
-                        // 切换到首页（renderPage默认第1页）
                         renderPage(1);
                     }
-                    // 若无下一个平面，无操作
                 }
             });
 
@@ -1409,6 +1470,8 @@
                     btn.classList.add('active');
                     searchOpts[btn.dataset.opt] = true;
                 });
+                // 重置搜索范围为默认"本字符集"
+                searchMode.value = 'plane';
                 renderPage(1);
                 historyPanel.classList.remove('active');
                 searchInput.blur();
@@ -1463,7 +1526,7 @@
             switchPlane(0x0000);
             updateClearBtn();
             renderHistory();
-            console.log('✅ 全部17个Unicode平面已加载，跨平面翻页已修复。');
+            console.log('✅ 全部17个Unicode平面已加载，布局已调整为两行。');
         })();
     </script>
 

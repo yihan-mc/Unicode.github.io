@@ -182,7 +182,7 @@
             align-items: center;
         }
         .search-wrapper input[type="text"] {
-            padding-right: 28px; /* 为清除按钮留空间 */
+            padding-right: 28px;
             width: 160px;
         }
         .search-wrapper .clear-btn {
@@ -200,7 +200,7 @@
             line-height: 18px;
             text-align: center;
             cursor: pointer;
-            display: none; /* 默认隐藏，有内容时显示 */
+            display: none;
             transition: background 0.15s;
         }
         .search-wrapper .clear-btn:hover {
@@ -623,13 +623,7 @@
             <div class="toolbar">
                 <label for="planeSelect">📂 字符集</label>
                 <select id="planeSelect">
-                    <option value="0x0000">BMP (基本多文种平面)</option>
-                    <option value="0x10000">SMP (补充多文种平面)</option>
-                    <option value="0x20000">SIP (表意文字补充平面)</option>
-                    <option value="0x30000">TIP (表意文字第三平面)</option>
-                    <option value="0xE0000">SSP (特别用途补充平面)</option>
-                    <option value="0xF0000">PUA-A (私有使用区-A)</option>
-                    <option value="0x100000">PUA-B (私有使用区-B)</option>
+                    <!-- 由 JS 动态生成所有平面选项 -->
                 </select>
 
                 <label for="searchMode">🔍 范围</label>
@@ -698,7 +692,7 @@
             </div>
 
             <div class="footer-info">
-                🧩 每页 16×16 = 256 个码位 · 🐧咕咕嘎嘎🐧 · 点击📋复制按钮即可复制字符
+                🧩 每页 16 × 16 = 256 个码位 · 🐧咕咕嘎嘎🐧 · 点击📋复制按钮即可复制字符
                 <a href="#" onclick="window.location.reload();return false;">刷新</a>
             </div>
         </div>
@@ -711,16 +705,52 @@
         (function() {
             'use strict';
 
-            // ---------- 平面配置 ----------
+            // ---------- 所有 17 个 Unicode 平面配置 ----------
             const PLANES = {
                 '0x0000': { name: 'BMP', label: '基本多文种平面', range: 'U+0000 – U+FFFF' },
                 '0x10000': { name: 'SMP', label: '补充多文种平面', range: 'U+10000 – U+1FFFF' },
                 '0x20000': { name: 'SIP', label: '表意文字补充平面', range: 'U+20000 – U+2FFFF' },
                 '0x30000': { name: 'TIP', label: '表意文字第三平面', range: 'U+30000 – U+3FFFF' },
+                '0x40000': { name: 'Plane 4', label: '预留平面 4', range: 'U+40000 – U+4FFFF' },
+                '0x50000': { name: 'Plane 5', label: '预留平面 5', range: 'U+50000 – U+5FFFF' },
+                '0x60000': { name: 'Plane 6', label: '预留平面 6', range: 'U+60000 – U+6FFFF' },
+                '0x70000': { name: 'Plane 7', label: '预留平面 7', range: 'U+70000 – U+7FFFF' },
+                '0x80000': { name: 'Plane 8', label: '预留平面 8', range: 'U+80000 – U+8FFFF' },
+                '0x90000': { name: 'Plane 9', label: '预留平面 9', range: 'U+90000 – U+9FFFF' },
+                '0xA0000': { name: 'Plane 10', label: '预留平面 10', range: 'U+A0000 – U+AFFFF' },
+                '0xB0000': { name: 'Plane 11', label: '预留平面 11', range: 'U+B0000 – U+BFFFF' },
+                '0xC0000': { name: 'Plane 12', label: '预留平面 12', range: 'U+C0000 – U+CFFFF' },
+                '0xD0000': { name: 'Plane 13', label: '预留平面 13', range: 'U+D0000 – U+DFFFF' },
                 '0xE0000': { name: 'SSP', label: '特别用途补充平面', range: 'U+E0000 – U+E0FFF' },
                 '0xF0000': { name: 'PUA-A', label: '私有使用区-A', range: 'U+F0000 – U+FFFFF' },
                 '0x100000': { name: 'PUA-B', label: '私有使用区-B', range: 'U+100000 – U+10FFFF' }
             };
+
+            // ---------- 工具函数：获取排序后的平面键列表（用于下拉菜单） ----------
+            function getSortedPlaneKeys() {
+                return Object.keys(PLANES).sort((a, b) => parseInt(a) - parseInt(b));
+            }
+
+            // ---------- 获取排序后的平面起始码数值列表（用于跨平面翻页） ----------
+            function getPlaneStartsSorted() {
+                return getSortedPlaneKeys().map(key => parseInt(key));
+            }
+
+            // ---------- 获取上一个平面起始码 ----------
+            function getPrevPlaneStart(currentStart) {
+                const starts = getPlaneStartsSorted();
+                const idx = starts.indexOf(currentStart);
+                if (idx > 0) return starts[idx - 1];
+                return null;
+            }
+
+            // ---------- 获取下一个平面起始码 ----------
+            function getNextPlaneStart(currentStart) {
+                const starts = getPlaneStartsSorted();
+                const idx = starts.indexOf(currentStart);
+                if (idx < starts.length - 1) return starts[idx + 1];
+                return null;
+            }
 
             const CTRL_NAMES = {
                 0x00: 'NUL', 0x01: 'SOH', 0x02: 'STX', 0x03: 'ETX', 0x04: 'EOT',
@@ -854,12 +884,11 @@
                     li.appendChild(delBtn);
 
                     li.addEventListener('mousedown', function(e) {
-                        e.preventDefault(); // 防止失焦
+                        e.preventDefault();
                         searchInput.value = item;
                         searchAndLocate(item);
-                        // 关闭面板并收起键盘
                         historyPanel.classList.remove('active');
-                        searchInput.blur(); // 关闭手机键盘
+                        searchInput.blur();
                         updateClearBtn();
                     });
                     historyList.appendChild(li);
@@ -925,9 +954,13 @@
                 currentPlaneStart = start;
                 currentData = generatePlaneData(start);
 
-                // 同步下拉框
-                const selectVal = '0x' + start.toString(16).toUpperCase().padStart(4, '0');
-                planeSelect.value = selectVal;
+                // 同步下拉框 —— 使用 PLANES 的键来匹配
+                let key = Object.keys(PLANES).find(k => parseInt(k) === start);
+                if (key) {
+                    planeSelect.value = key;
+                } else {
+                    planeSelect.value = '0x' + start.toString(16);
+                }
 
                 // 更新界面信息
                 let planeKey = Object.keys(PLANES).find(key => parseInt(key) === start);
@@ -1119,10 +1152,10 @@
                 if (hexEnabled) {
                     let hexStr = kw;
                     let isHex = false;
-                    if (/^0x[0-9a-f]{1,5}$/i.test(kw)) {
+                    if (/^0x[0-9a-f]{1,6}$/i.test(kw)) {
                         hexStr = kw.slice(2);
                         isHex = true;
-                    } else if (/^[0-9a-f]{1,5}$/i.test(kw)) {
+                    } else if (/^[0-9a-f]{1,6}$/i.test(kw)) {
                         isHex = true;
                     }
                     if (isHex) {
@@ -1148,12 +1181,10 @@
                     if (mode === 'all') {
                         allowJump = true;
                     } else if (mode === 'plane') {
-                        // 只在当前平面内
                         if (targetCode >= currentPlaneStart && targetCode < currentPlaneStart + TOTAL_PER_PLANE) {
                             allowJump = true;
                         }
                     } else if (mode === 'page') {
-                        // 只在当前页内
                         const startIdx = (currentPage - 1) * PAGE_SIZE;
                         const endIdx = Math.min(startIdx + PAGE_SIZE, currentData.length);
                         for (let i = startIdx; i < endIdx; i++) {
@@ -1164,7 +1195,6 @@
                         }
                     }
                     if (allowJump) {
-                        // 找到所属平面（已经确保在当前平面或全局）
                         let foundPlane = -1;
                         for (const key of Object.keys(PLANES)) {
                             const start = parseInt(key);
@@ -1176,7 +1206,6 @@
                         if (foundPlane !== -1) {
                             highlightCode = targetCode;
                             if (foundPlane !== currentPlaneStart) {
-                                // 切换平面，保留搜索框和高亮
                                 switchPlane(foundPlane, { resetHighlight: false, clearSearch: false });
                                 const page = Math.floor((targetCode - foundPlane) / PAGE_SIZE) + 1;
                                 currentPage = page;
@@ -1192,7 +1221,6 @@
                             return;
                         }
                     } else {
-                        // 码位解析成功但超出当前范围，提示未找到
                         alert('在当前搜索范围内未找到该码位');
                         return;
                     }
@@ -1258,7 +1286,7 @@
                 }
             }
 
-            // ---------- 分页导航 ----------
+            // ---------- 分页导航（包括跨平面） ----------
             function goToPage(page) {
                 if (page < 1) page = 1;
                 if (page > TOTAL_PAGES) page = TOTAL_PAGES;
@@ -1274,16 +1302,42 @@
                 const val = this.value;
                 const start = parseInt(val);
                 if (!isNaN(start) && start !== currentPlaneStart) {
-                    switchPlane(start); // 默认清空
+                    switchPlane(start);
                 }
             });
 
+            // 上一页：跨平面逻辑
             document.getElementById('prevPage').addEventListener('click', function() {
-                goToPage(currentPage - 1);
+                if (currentPage > 1) {
+                    goToPage(currentPage - 1);
+                } else {
+                    // 尝试跳转到上一个平面的末页
+                    const prevStart = getPrevPlaneStart(currentPlaneStart);
+                    if (prevStart !== null) {
+                        switchPlane(prevStart, { resetHighlight: true, clearSearch: true });
+                        // 切换到末页
+                        renderPage(TOTAL_PAGES);
+                    }
+                    // 若无上一个平面，无操作
+                }
             });
+
+            // 下一页：跨平面逻辑
             document.getElementById('nextPage').addEventListener('click', function() {
-                goToPage(currentPage + 1);
+                if (currentPage < TOTAL_PAGES) {
+                    goToPage(currentPage + 1);
+                } else {
+                    // 尝试跳转到下一个平面的首页
+                    const nextStart = getNextPlaneStart(currentPlaneStart);
+                    if (nextStart !== null) {
+                        switchPlane(nextStart, { resetHighlight: true, clearSearch: true });
+                        // 切换到首页（renderPage默认第1页）
+                        renderPage(1);
+                    }
+                    // 若无下一个平面，无操作
+                }
             });
+
             document.getElementById('jumpBtn').addEventListener('click', function() {
                 let p = parseInt(pageJump.value);
                 if (isNaN(p) || p < 1) p = 1;
@@ -1303,25 +1357,22 @@
                 goToPage(TOTAL_PAGES);
             });
 
-            // 定位按钮：执行搜索后关闭键盘
             document.getElementById('searchBtn').addEventListener('click', function() {
                 const val = searchInput.value;
                 searchAndLocate(val);
                 historyPanel.classList.remove('active');
-                searchInput.blur(); // 关闭手机键盘
+                searchInput.blur();
             });
 
-            // 回车键：执行搜索后关闭键盘
             searchInput.addEventListener('keyup', function(e) {
                 if (e.key === 'Enter') {
                     const val = searchInput.value;
                     searchAndLocate(val);
                     historyPanel.classList.remove('active');
-                    searchInput.blur(); // 关闭手机键盘
+                    searchInput.blur();
                 }
             });
 
-            // 清除按钮
             clearSearchBtn.addEventListener('click', function() {
                 searchInput.value = '';
                 updateClearBtn();
@@ -1331,29 +1382,24 @@
                 searchInput.focus();
             });
 
-            // 输入框内容变化时更新清除按钮
             searchInput.addEventListener('input', updateClearBtn);
 
-            // ---------- 历史面板显示/隐藏 ----------
             searchInput.addEventListener('focus', function() {
                 renderHistory();
                 historyPanel.classList.add('active');
             });
 
-            // 点击外部关闭历史面板
             document.addEventListener('click', function(e) {
                 if (!searchWrapper.contains(e.target)) {
                     historyPanel.classList.remove('active');
                 }
             });
 
-            // 清空所有历史
             clearAllHistoryBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 clearAllHistory();
             });
 
-            // 重置按钮：清空搜索框、取消高亮、恢复搜索选项全选、回到第一页
             document.getElementById('resetBtn').addEventListener('click', function() {
                 searchInput.value = '';
                 updateClearBtn();
@@ -1365,11 +1411,9 @@
                 });
                 renderPage(1);
                 historyPanel.classList.remove('active');
-                // 可选失焦
                 searchInput.blur();
             });
 
-            // 滚动阴影
             function updateShadow() {
                 if (mainContent.scrollTop > 10 || tableScroll.scrollTop > 10) {
                     head.classList.add('scrolled');
@@ -1380,7 +1424,6 @@
             mainContent.addEventListener('scroll', updateShadow);
             tableScroll.addEventListener('scroll', updateShadow);
 
-            // 行高亮（排除复制按钮）
             tbody.addEventListener('click', function(e) {
                 if (e.target.closest('.copy-btn')) return;
                 const td = e.target.closest('td');
@@ -1391,7 +1434,6 @@
                 tr.classList.add('highlight-row');
             });
 
-            // 动态样式
             const styleExtra = document.createElement('style');
             styleExtra.textContent = `
                         #resultBody tr.highlight-row td {
@@ -1403,11 +1445,25 @@
                     `;
             document.head.appendChild(styleExtra);
 
+            // ---------- 动态生成下拉选项（所有17个平面） ----------
+            function populatePlaneSelect() {
+                planeSelect.innerHTML = '';
+                const sortedKeys = getSortedPlaneKeys();
+                sortedKeys.forEach(key => {
+                    const info = PLANES[key];
+                    const opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = info.label + ' (' + info.name + ')';
+                    planeSelect.appendChild(opt);
+                });
+            }
+
             // ---------- 初始化 ----------
+            populatePlaneSelect();
             switchPlane(0x0000);
             updateClearBtn();
             renderHistory();
-            console.log('✅ 全平面 Unicode 查看器已加载，搜索后自动关闭键盘。');
+            console.log('✅ 全部17个Unicode平面已加载，跨平面翻页已修复。');
         })();
     </script>
 

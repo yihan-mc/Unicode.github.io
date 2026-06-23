@@ -222,13 +222,13 @@
             white-space: nowrap;
         }
 
-        /* ---- 历史搜索面板 ---- */
-        .history-panel {
+        /* ---- 搜索面板（历史 & 候选） ---- */
+        .search-panel {
             position: absolute;
             top: calc(100% + 4px);
             left: 0;
             width: 100%;
-            max-width: 280px;
+            max-width: 360px;
             background: #fff;
             border: 1px solid #dce1eb;
             border-radius: 8px;
@@ -236,10 +236,13 @@
             padding: 8px 0;
             z-index: 200;
             display: none;
+            max-height: 400px;
+            overflow-y: auto;
         }
-        .history-panel.active {
+        .search-panel.active {
             display: block;
         }
+
         .history-header {
             display: flex;
             justify-content: space-between;
@@ -264,7 +267,7 @@
             list-style: none;
             margin: 0;
             padding: 4px 0;
-            max-height: 200px;
+            max-height: 350px;
             overflow-y: auto;
         }
         .history-list li {
@@ -303,6 +306,55 @@
             text-align: center;
             color: #b0b8c8;
             font-size: 13px;
+        }
+
+        /* 候选区 */
+        .candidate-section {
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f2f7;
+        }
+        .candidate-section:last-child {
+            border-bottom: none;
+        }
+        .candidate-section .section-title {
+            padding: 2px 12px 2px 12px;
+            font-size: 12px;
+            color: #888;
+            font-weight: 600;
+            background: #fafbfc;
+        }
+        .candidate-section .section-title .count-badge {
+            font-weight: normal;
+            color: #aaa;
+            margin-left: 6px;
+        }
+        .candidate-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .candidate-list li {
+            display: flex;
+            align-items: center;
+            padding: 3px 12px 3px 24px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.1s;
+            gap: 8px;
+        }
+        .candidate-list li:hover {
+            background: #f5f7fa;
+        }
+        .candidate-list li .candidate-char {
+            font-size: 18px;
+            width: 30px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .candidate-list li .candidate-code {
+            color: #888;
+            font-family: monospace;
+            font-size: 12px;
         }
 
         /* 分页控件 */
@@ -529,6 +581,13 @@
             color: #5fb8ff;
             text-decoration: none;
         }
+        .footer-info .easter-egg {
+            cursor: pointer;
+            transition: color 0.15s;
+        }
+        .footer-info .easter-egg:hover {
+            color: #5fb8ff;
+        }
 
         #copyToast {
             position: fixed;
@@ -605,7 +664,7 @@
                 font-size: 11px;
                 padding: 1px 3px;
             }
-            .history-panel {
+            .search-panel {
                 max-width: 100%;
                 width: 100%;
             }
@@ -656,7 +715,6 @@
                     <select id="planeSelect">
                         <!-- 由 JS 动态生成所有平面选项 -->
                     </select>
-                    <!-- 此处可放置其它与字符集相关的元素，暂无 -->
                 </div>
 
                 <!-- 第二行：搜索相关 -->
@@ -675,17 +733,23 @@
                         <span class="opt-btn active" data-opt="char">字符</span>
                     </span>
 
-                    <!-- 搜索输入框 + 清除按钮 + 历史面板 -->
+                    <!-- 搜索输入框 + 清除按钮 + 双面板 -->
                     <div class="search-wrapper" id="searchWrapper">
                         <input type="text" id="searchInput" placeholder="关键词" autocomplete="off">
                         <button class="clear-btn" id="clearSearchBtn" title="清除">✕</button>
+
                         <!-- 历史面板 -->
-                        <div class="history-panel" id="historyPanel">
+                        <div class="search-panel" id="historyPanel">
                             <div class="history-header">
                                 <span>搜索历史</span>
                                 <button class="clear-all-btn" id="clearAllHistory" title="清除所有历史">🗑️</button>
                             </div>
                             <ul class="history-list" id="historyList"></ul>
+                        </div>
+
+                        <!-- 候选面板 -->
+                        <div class="search-panel" id="candidatePanel">
+                            <!-- 由 JS 动态填充 -->
                         </div>
                     </div>
                     <!-- 优先级提示 -->
@@ -732,7 +796,7 @@
             </div>
 
             <div class="footer-info">
-                🧩 每页 16 × 16 = 256 个码位 · 🐧咕咕嘎嘎🐧 · 点击📋复制按钮即可复制字符
+                🧩 每页 16 × 16 = 256 个码位 · <span class="easter-egg" id="easterEgg">🐧咕咕嘎嘎🐧</span> · 点击📋复制按钮即可复制字符
                 <a href="#" onclick="window.location.reload();return false;">刷新</a>
             </div>
         </div>
@@ -766,25 +830,19 @@
                 '0x100000': { name: 'PUA-B', label: '私有使用区-B', range: 'U+100000 – U+10FFFF' }
             };
 
-            // ---------- 工具函数：获取排序后的平面键列表（用于下拉菜单） ----------
+            // ---------- 工具函数 ----------
             function getSortedPlaneKeys() {
                 return Object.keys(PLANES).sort((a, b) => parseInt(a) - parseInt(b));
             }
-
-            // ---------- 获取排序后的平面起始码数值列表（用于跨平面翻页） ----------
             function getPlaneStartsSorted() {
                 return getSortedPlaneKeys().map(key => parseInt(key));
             }
-
-            // ---------- 获取上一个平面起始码 ----------
             function getPrevPlaneStart(currentStart) {
                 const starts = getPlaneStartsSorted();
                 const idx = starts.indexOf(currentStart);
                 if (idx > 0) return starts[idx - 1];
                 return null;
             }
-
-            // ---------- 获取下一个平面起始码 ----------
             function getNextPlaneStart(currentStart) {
                 const starts = getPlaneStartsSorted();
                 const idx = starts.indexOf(currentStart);
@@ -849,8 +907,23 @@
             const searchWrapper = document.getElementById('searchWrapper');
             const prevPageBtn = document.getElementById('prevPage');
             const nextPageBtn = document.getElementById('nextPage');
+            const candidatePanel = document.getElementById('candidatePanel');
+            const easterEgg = document.getElementById('easterEgg');
 
             totalPagesDisplay.textContent = TOTAL_PAGES;
+
+            // ---------- 彩蛋 ----------
+            easterEgg.addEventListener('click', function() {
+                // 播放音频
+                try {
+                    const audio = new Audio('咕咕嘎嘎.mp3');
+                    audio.play();
+                } catch (e) {
+                    console.warn('音频播放失败:', e);
+                }
+                // 弹窗
+                alert('🐧咕咕嘎嘎🐧');
+            });
 
             // ---------- 历史记录管理 ----------
             const STORAGE_KEY = 'unicode_viewer_history';
@@ -921,6 +994,7 @@
                         if (searchInput.value === item) {
                             searchInput.value = '';
                             updateClearBtn();
+                            updatePanels();
                         }
                     });
                     li.appendChild(delBtn);
@@ -930,6 +1004,7 @@
                         searchInput.value = item;
                         searchAndLocate(item);
                         historyPanel.classList.remove('active');
+                        candidatePanel.classList.remove('active');
                         searchInput.blur();
                         updateClearBtn();
                     });
@@ -944,6 +1019,143 @@
                 } else {
                     clearSearchBtn.classList.remove('visible');
                 }
+            }
+
+            // ---------- 面板切换 ----------
+            function updatePanels() {
+                const hasFocus = document.activeElement === searchInput;
+                if (!hasFocus) {
+                    historyPanel.classList.remove('active');
+                    candidatePanel.classList.remove('active');
+                    return;
+                }
+                const val = searchInput.value.trim();
+                if (val.length === 0) {
+                    // 显示历史
+                    historyPanel.classList.add('active');
+                    candidatePanel.classList.remove('active');
+                    renderHistory();
+                } else {
+                    // 显示候选
+                    historyPanel.classList.remove('active');
+                    candidatePanel.classList.add('active');
+                    renderCandidates(val);
+                }
+            }
+
+            // ---------- 候选生成 ----------
+            function renderCandidates(keyword) {
+                const mode = searchMode.value; // 'page', 'plane', 'all'
+                const hexEnabled = searchOpts.hex;
+                const decEnabled = searchOpts.decimal;
+                const charEnabled = searchOpts.char;
+
+                // 获取搜索范围数据
+                let dataToSearch = [];
+                if (mode === 'page') {
+                    const startIdx = (currentPage - 1) * PAGE_SIZE;
+                    const endIdx = Math.min(startIdx + PAGE_SIZE, currentData.length);
+                    dataToSearch = currentData.slice(startIdx, endIdx);
+                } else if (mode === 'plane') {
+                    dataToSearch = currentData;
+                } else { // 'all'
+                    // 收集所有已加载平面的数据（只遍历已生成缓存的平面，未生成的动态生成）
+                    for (const key of Object.keys(PLANES)) {
+                        const start = parseInt(key);
+                        const data = generatePlaneData(start);
+                        dataToSearch = dataToSearch.concat(data);
+                    }
+                }
+
+                const results = {};
+
+                // 十六进制区
+                if (hexEnabled) {
+                    const hexList = [];
+                    const lowerKw = keyword.toLowerCase();
+                    for (const item of dataToSearch) {
+                        if (item.hex.toLowerCase().includes(lowerKw)) {
+                            hexList.push(item);
+                            if (hexList.length >= 10) break;
+                        }
+                    }
+                    results.hex = { items: hexList, total: hexList.length === 10 ? 10 : hexList.length, more: hexList
+                        .length === 10 };
+                }
+
+                // 十进制区
+                if (decEnabled) {
+                    const decList = [];
+                    for (const item of dataToSearch) {
+                        if (String(item.code).includes(keyword)) {
+                            decList.push(item);
+                            if (decList.length >= 10) break;
+                        }
+                    }
+                    results.dec = { items: decList, total: decList.length === 10 ? 10 : decList.length, more: decList
+                        .length === 10 };
+                }
+
+                // 字符区
+                if (charEnabled) {
+                    const charList = [];
+                    const lowerKw = keyword.toLowerCase();
+                    for (const item of dataToSearch) {
+                        const str = (item.char + item.display).toLowerCase();
+                        if (str.includes(lowerKw)) {
+                            charList.push(item);
+                            if (charList.length >= 10) break;
+                        }
+                    }
+                    results.char = { items: charList, total: charList.length === 10 ? 10 : charList.length, more: charList
+                        .length === 10 };
+                }
+
+                // 渲染
+                let html = '';
+                const sectionOrder = ['hex', 'dec', 'char'];
+                const sectionLabels = {
+                    hex: '十六进制',
+                    dec: '十进制',
+                    char: '字符'
+                };
+                for (const sec of sectionOrder) {
+                    if (!results[sec]) continue;
+                    const data = results[sec];
+                    if (data.items.length === 0) continue;
+                    const countDisplay = data.more ? `${data.total}+` : data.total;
+                    html += `<div class="candidate-section">
+                        <div class="section-title">${sectionLabels[sec]} <span class="count-badge">(${countDisplay})</span></div>
+                        <ul class="candidate-list">`;
+                    for (const item of data.items) {
+                        const charDisplay = item.isCtrl ? item.display : (item.char === ' ' ? '␣' : (item.char === '\xA0' ?
+                            ' ' : item.char));
+                        const codeHex = '0x' + item.hex;
+                        const codeDec = item.code;
+                        html += `<li data-code="${item.code}" class="candidate-item">
+                            <span class="candidate-char">${charDisplay}</span>
+                            <span class="candidate-code">${codeHex} (${codeDec})</span>
+                        </li>`;
+                    }
+                    html += `</ul></div>`;
+                }
+                if (!html) {
+                    html = `<div class="history-empty">无匹配结果</div>`;
+                }
+                candidatePanel.innerHTML = html;
+
+                // 绑定点击事件
+                candidatePanel.querySelectorAll('.candidate-item').forEach(el => {
+                    el.addEventListener('mousedown', function(e) {
+                        e.preventDefault();
+                        const code = parseInt(this.dataset.code);
+                        if (!isNaN(code)) {
+                            searchAndLocate(code);
+                            candidatePanel.classList.remove('active');
+                            searchInput.blur();
+                        }
+                    });
+                });
             }
 
             // ---------- 生成指定平面的数据 (并缓存) ----------
@@ -988,7 +1200,7 @@
                 return data;
             }
 
-            // ---------- 切换平面 (增强：支持同步下拉框) ----------
+            // ---------- 切换平面 ----------
             function switchPlane(start, options = {}) {
                 const resetHighlight = options.resetHighlight !== undefined ? options.resetHighlight : true;
                 const clearSearch = options.clearSearch !== undefined ? options.clearSearch : true;
@@ -996,7 +1208,6 @@
                 currentPlaneStart = start;
                 currentData = generatePlaneData(start);
 
-                // 同步下拉框 —— 使用 PLANES 的键来匹配
                 let key = Object.keys(PLANES).find(k => parseInt(k) === start);
                 if (key) {
                     planeSelect.value = key;
@@ -1004,7 +1215,6 @@
                     planeSelect.value = '0x' + start.toString(16);
                 }
 
-                // 更新界面信息
                 let planeKey = Object.keys(PLANES).find(key => parseInt(key) === start);
                 const planeInfo = PLANES[planeKey] || { name: '未知', label: '未知平面', range: '' };
 
@@ -1027,23 +1237,13 @@
 
             // ---------- 更新上一页/下一页按钮状态 ----------
             function updateNavButtons() {
-                // 上一页禁用条件：当前是 BMP (0x0000) 且当前页为 1
                 const isFirstPlaneFirstPage = (currentPlaneStart === 0x0000 && currentPage === 1);
                 prevPageBtn.disabled = isFirstPlaneFirstPage;
-                if (isFirstPlaneFirstPage) {
-                    prevPageBtn.title = '已是首个平面首页';
-                } else {
-                    prevPageBtn.title = '上一页';
-                }
+                prevPageBtn.title = isFirstPlaneFirstPage ? '已是首个平面首页' : '上一页';
 
-                // 下一页禁用条件：当前是 PUA-B (0x100000) 且当前页为 TOTAL_PAGES
                 const isLastPlaneLastPage = (currentPlaneStart === 0x100000 && currentPage === TOTAL_PAGES);
                 nextPageBtn.disabled = isLastPlaneLastPage;
-                if (isLastPlaneLastPage) {
-                    nextPageBtn.title = '已是最后一个平面末页';
-                } else {
-                    nextPageBtn.title = '下一页';
-                }
+                nextPageBtn.title = isLastPlaneLastPage ? '已是最后一个平面末页' : '下一页';
             }
 
             // ---------- 渲染当前页 ----------
@@ -1187,19 +1387,29 @@
                 if (!opt) return;
                 btn.classList.toggle('active');
                 searchOpts[opt] = btn.classList.contains('active');
+                // 如果输入框有焦点且有内容，刷新候选
+                if (document.activeElement === searchInput && searchInput.value.trim()) {
+                    renderCandidates(searchInput.value.trim());
+                }
             });
 
-            // ---------- 核心搜索函数 (严格按范围限制) ----------
+            // ---------- 核心搜索函数 (改进：优先精确匹配) ----------
             function searchAndLocate(keyword) {
-                const kw = keyword.trim();
-                if (!kw) {
+                // 支持传入数字码位
+                let kw = keyword;
+                if (typeof keyword === 'number') {
+                    kw = keyword.toString(16).toUpperCase();
+                }
+                if (typeof kw !== 'string') kw = String(kw);
+                const trimmed = kw.trim();
+                if (!trimmed) {
                     highlightCode = -1;
                     renderPage(1);
                     return;
                 }
 
                 // 保存到历史
-                addHistory(kw);
+                addHistory(trimmed);
 
                 const hexEnabled = searchOpts.hex;
                 const decEnabled = searchOpts.decimal;
@@ -1215,12 +1425,12 @@
                 // ----- 先尝试数字解析 -----
                 let targetCode = -1;
                 if (hexEnabled) {
-                    let hexStr = kw;
+                    let hexStr = trimmed;
                     let isHex = false;
-                    if (/^0x[0-9a-f]{1,6}$/i.test(kw)) {
-                        hexStr = kw.slice(2);
+                    if (/^0x[0-9a-f]{1,6}$/i.test(trimmed)) {
+                        hexStr = trimmed.slice(2);
                         isHex = true;
-                    } else if (/^[0-9a-f]{1,6}$/i.test(kw)) {
+                    } else if (/^[0-9a-f]{1,6}$/i.test(trimmed)) {
                         isHex = true;
                     }
                     if (isHex) {
@@ -1231,17 +1441,16 @@
                     }
                 }
                 if (targetCode === -1 && decEnabled) {
-                    if (/^[0-9]+$/.test(kw)) {
-                        const parsed = parseInt(kw, 10);
+                    if (/^[0-9]+$/.test(trimmed)) {
+                        const parsed = parseInt(trimmed, 10);
                         if (!isNaN(parsed) && parsed >= 0 && parsed <= 0x10FFFF) {
                             targetCode = parsed;
                         }
                     }
                 }
 
-                // 如果解析到了有效码位
+                // 如果数字解析到了有效码位
                 if (targetCode !== -1) {
-                    // 根据模式判断是否允许跳转
                     let allowJump = false;
                     if (mode === 'all') {
                         allowJump = true;
@@ -1291,60 +1500,69 @@
                     }
                 }
 
-                // ----- 字符模糊匹配（仅当 charEnabled） -----
+                // ----- 字符匹配（改进：优先精确匹配） -----
                 if (!charEnabled) {
                     alert('未找到匹配的码位，请检查输入或启用"字符"搜索进行模糊匹配。');
                     return;
                 }
 
-                // 根据模式搜索
+                // 辅助函数：在数据数组 data 中搜索，优先精确匹配，再忽略大小写
+                function findInData(data, kw) {
+                    // 第一次遍历：精确匹配（区分大小写）
+                    for (let i = 0; i < data.length; i++) {
+                        const item = data[i];
+                        if (item.char === kw || (item.display !== item.char && item.display === kw)) {
+                            return item;
+                        }
+                    }
+                    // 第二次遍历：忽略大小写匹配
+                    const lowerKw = kw.toLowerCase();
+                    for (let i = 0; i < data.length; i++) {
+                        const item = data[i];
+                        const str = item.char + item.display;
+                        if (str.toLowerCase().includes(lowerKw)) {
+                            return item;
+                        }
+                    }
+                    return null;
+                }
+
+                let foundItem = null;
                 if (mode === 'page') {
                     const startIdx = (currentPage - 1) * PAGE_SIZE;
                     const endIdx = Math.min(startIdx + PAGE_SIZE, currentData.length);
-                    for (let i = startIdx; i < endIdx; i++) {
-                        const item = currentData[i];
-                        const str = item.char + item.display;
-                        if (str.toLowerCase().includes(kw.toLowerCase())) {
-                            highlightCode = item.code;
-                            renderPage(currentPage);
-                            return;
-                        }
+                    const pageData = currentData.slice(startIdx, endIdx);
+                    foundItem = findInData(pageData, trimmed);
+                    if (foundItem) {
+                        highlightCode = foundItem.code;
+                        renderPage(currentPage);
+                        return;
                     }
                     alert('当前页未找到匹配字符');
                 } else if (mode === 'plane') {
-                    for (let i = 0; i < currentData.length; i++) {
-                        const item = currentData[i];
-                        const str = item.char + item.display;
-                        if (str.toLowerCase().includes(kw.toLowerCase())) {
-                            highlightCode = item.code;
-                            const page = Math.floor((item.code - currentPlaneStart) / PAGE_SIZE) + 1;
-                            currentPage = page;
-                            renderPage(page);
-                            return;
-                        }
+                    foundItem = findInData(currentData, trimmed);
+                    if (foundItem) {
+                        highlightCode = foundItem.code;
+                        const page = Math.floor((foundItem.code - currentPlaneStart) / PAGE_SIZE) + 1;
+                        currentPage = page;
+                        renderPage(page);
+                        return;
                     }
                     alert('当前平面未找到匹配字符');
                 } else { // 'all'
                     for (const key of Object.keys(PLANES)) {
                         const start = parseInt(key);
                         const data = generatePlaneData(start);
-                        for (let i = 0; i < data.length; i++) {
-                            const item = data[i];
-                            const str = item.char + item.display;
-                            if (str.toLowerCase().includes(kw.toLowerCase())) {
-                                highlightCode = item.code;
-                                if (start !== currentPlaneStart) {
-                                    switchPlane(start, { resetHighlight: false, clearSearch: false });
-                                    const page = Math.floor((item.code - start) / PAGE_SIZE) + 1;
-                                    currentPage = page;
-                                    renderPage(page);
-                                } else {
-                                    const page = Math.floor((item.code - currentPlaneStart) / PAGE_SIZE) + 1;
-                                    currentPage = page;
-                                    renderPage(page);
-                                }
-                                return;
+                        foundItem = findInData(data, trimmed);
+                        if (foundItem) {
+                            highlightCode = foundItem.code;
+                            if (start !== currentPlaneStart) {
+                                switchPlane(start, { resetHighlight: false, clearSearch: false });
                             }
+                            const page = Math.floor((foundItem.code - start) / PAGE_SIZE) + 1;
+                            currentPage = page;
+                            renderPage(page);
+                            return;
                         }
                     }
                     alert('所有已定义字符集中未找到匹配字符');
@@ -1362,7 +1580,6 @@
             }
 
             // ---------- 事件绑定 ----------
-            // 手动切换平面（清空搜索和高亮）
             planeSelect.addEventListener('change', function() {
                 const val = this.value;
                 const start = parseInt(val);
@@ -1371,7 +1588,6 @@
                 }
             });
 
-            // 上一页：跨平面逻辑
             prevPageBtn.addEventListener('click', function() {
                 if (this.disabled) return;
                 if (currentPage > 1) {
@@ -1385,7 +1601,6 @@
                 }
             });
 
-            // 下一页：跨平面逻辑
             nextPageBtn.addEventListener('click', function() {
                 if (this.disabled) return;
                 if (currentPage < TOTAL_PAGES) {
@@ -1422,6 +1637,7 @@
                 const val = searchInput.value;
                 searchAndLocate(val);
                 historyPanel.classList.remove('active');
+                candidatePanel.classList.remove('active');
                 searchInput.blur();
             });
 
@@ -1430,29 +1646,47 @@
                     const val = searchInput.value;
                     searchAndLocate(val);
                     historyPanel.classList.remove('active');
+                    candidatePanel.classList.remove('active');
                     searchInput.blur();
                 }
             });
 
+            // 清除按钮：清空后保持焦点并显示历史面板
             clearSearchBtn.addEventListener('click', function() {
                 searchInput.value = '';
                 updateClearBtn();
                 highlightCode = -1;
                 renderPage(currentPage);
-                historyPanel.classList.remove('active');
+                candidatePanel.classList.remove('active');
                 searchInput.focus();
             });
 
-            searchInput.addEventListener('input', updateClearBtn);
-
-            searchInput.addEventListener('focus', function() {
-                renderHistory();
-                historyPanel.classList.add('active');
+            searchInput.addEventListener('input', function() {
+                updateClearBtn();
+                updatePanels();
             });
 
+            // 焦点控制
+            searchInput.addEventListener('focus', function() {
+                updatePanels();
+            });
+
+            // 修正 blur 事件：如果焦点回到输入框，不关闭面板
+            searchInput.addEventListener('blur', function() {
+                setTimeout(() => {
+                    if (document.activeElement === searchInput) {
+                        return;
+                    }
+                    historyPanel.classList.remove('active');
+                    candidatePanel.classList.remove('active');
+                }, 150);
+            });
+
+            // 点击外部关闭面板
             document.addEventListener('click', function(e) {
                 if (!searchWrapper.contains(e.target)) {
                     historyPanel.classList.remove('active');
+                    candidatePanel.classList.remove('active');
                 }
             });
 
@@ -1470,10 +1704,10 @@
                     btn.classList.add('active');
                     searchOpts[btn.dataset.opt] = true;
                 });
-                // 重置搜索范围为默认"本字符集"
                 searchMode.value = 'plane';
                 renderPage(1);
                 historyPanel.classList.remove('active');
+                candidatePanel.classList.remove('active');
                 searchInput.blur();
             });
 
@@ -1526,7 +1760,7 @@
             switchPlane(0x0000);
             updateClearBtn();
             renderHistory();
-            console.log('✅ 全部17个Unicode平面已加载，布局已调整为两行。');
+            console.log('✅ 全部17个Unicode平面已加载，智能候选搜索已启用，彩蛋已添加。');
         })();
     </script>
 
